@@ -11,3 +11,4 @@ CREATE TABLE customer (
     city TEXT,
     state TEXT
 );
+

@@ -1,2 +1,0 @@
-INSERT INTO customer (first_name, last_name, email, password, phone_number, street_address, city, state)
-VALUES ('John', 'Doe', 'john.doe123@email.com', 'pass111', '555-123-4561', '45 Oak St', 'Springfield', 'IL');
