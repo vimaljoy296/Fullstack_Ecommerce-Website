@@ -253,25 +253,7 @@ def place_order(customer_id):
     VALUES ({customer_id}, '{order_date}', {total_amount}, 'Pending', '{street_address}', '{city}', '{state}', '{zip_code}')
     """
     execute_insert(order_insert_query)
-    
-    # Retrieve the order_id of the newly created order
-    order_id_query = f"SELECT last_insert_rowid() FROM orders"
-    order_id = execute_query(order_id_query)[0][0]
-
-    # Step 3: Move items from cart_items to order_items
-    cart_items_query = f"""
-    SELECT product_id, quantity, price FROM cart_items WHERE cart_id = {cart_id}
-    """
-    cart_items = execute_query(cart_items_query)
-    
-    for item in cart_items:
-        product_id, quantity, item_price = item
-        order_item_insert_query = f"""
-        INSERT INTO order_items (order_id, product_id, quantity, price)
-        VALUES ({order_id}, {product_id}, {quantity}, {item_price})
-        """
-        execute_insert(order_item_insert_query)
-    
+ 
     # Step 4: Clear the cart (remove items from cart_items and reset cart total_amount)
     clear_cart_items_query = f"DELETE FROM cart_items WHERE cart_id = {cart_id}"
     execute_insert(clear_cart_items_query)
@@ -281,7 +263,6 @@ def place_order(customer_id):
 
     return jsonify({
         "message": "Order placed successfully",
-        "order_id": order_id,
         "total_amount": total_amount,
         "customer_id": customer_id,
         "address": {
