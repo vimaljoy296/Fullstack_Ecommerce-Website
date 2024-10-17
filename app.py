@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -24,32 +25,11 @@ def execute_insert(query):
 # Ensure templates are auto-reloaded
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
-# Define routes
-@app.route('/')
-def index():
-    """Welcome message for the API."""
-    return 'Welcome to the Vjbazaar'
-
-# User-related routes
-@app.route('/customers', methods=["GET"])  # Changed to plural for clarity
-def get_all_customers():
-    """Get a list of all customers."""
-    customers = execute_query("SELECT first_name, last_name FROM customer")
-    return jsonify(customers), 200
-
-@app.route('/customer/<int:customer_id>', methods=["GET"])  # Ensure customer_id is an integer
-def get_customer_by_id(customer_id):
-    """Get a customer by their ID."""
-    customerid = execute_query(f"SELECT first_name, last_name, customer_id FROM customer WHERE customer_id = {customer_id}")
-    if customerid:
-        return jsonify(customerid), 200
-    return jsonify({"error": "Customer not found"}), 404
-
-# Sign-up route
+# 1. SIGN UP
 @app.route('/sign_up', methods=["POST"])
 def sign_up():
-    """Register a new user."""
-    data = request.get_json()
+    """REGISTER A NEW USER."""
+    data = request.get_json()  # Parse the JSON body of the request
     first_name = data.get('first_name')
     last_name = data.get('last_name')
     email = data.get('email')
@@ -69,26 +49,67 @@ def sign_up():
 
     return jsonify({"message": "User registered successfully"}), 201
 
-# Product-related routes
-@app.route('/products', methods=["GET"])
-def get_all_products():
-    """Get a list of all products."""
-    products = execute_query("SELECT * FROM products")
-    if products:
-        return jsonify(products), 200
-    return jsonify({"error": "No products found"}), 404
+# 2. HOMEPAGE
+@app.route('/homepage')
+def homepage():
+    """HOMEPAGE CONTENT."""
+    homepage_content = {
+        "title": "Welcome to VJBazaar",
+        "tagline": "Your Ultimate Sports Item Selector",
+        "message": "Discover our top-rated sports items selected by our customers!"
+    }
 
+    # Query for Top-Rated Products
+    query = """
+    SELECT p.product_id, p.product_name, p.description, p.price, AVG(r.rating) as avg_rating
+    FROM products p
+    JOIN reviews r ON p.product_id = r.product_id
+    GROUP BY p.product_id, p.product_name, p.description, p.price
+    HAVING avg_rating >= 4
+    ORDER BY avg_rating DESC
+    LIMIT 5
+    """
+
+    # Execute the query
+    top_rated_products = execute_query(query)
+
+    # Format the top-rated products for JSON output
+    homepage_content["top_rated_products"] = [
+        {
+            "product_id": product[0], 
+            "product_name": product[1], 
+            "description": product[2], 
+            "price": float(product[3]),  # Convert price to float for JSON compatibility
+            "average_rating": round(product[4], 1)  # Round to one decimal place
+        }
+        for product in top_rated_products
+    ]
+
+    # Return as JSON
+    return jsonify(homepage_content), 200
+
+# 3. USER PROFILE
+@app.route('/customer/<int:customer_id>', methods=["GET"])
+def get_customer_by_id(customer_id):
+    """GET A CUSTOMER BY THEIR ID."""
+    customerid = execute_query(f"SELECT first_name, last_name, customer_id FROM customer WHERE customer_id = {customer_id}")
+    if customerid:
+        return jsonify(customerid), 200
+    return jsonify({"error": "Customer not found"}), 404
+
+# 4. PRODUCT DETAILS
 @app.route('/product/<int:product_id>', methods=["GET"])
 def get_product_by_id(product_id):
-    """Get a product by its ID."""
+    """GET A PRODUCT BY ITS ID."""
     product = execute_query(f"SELECT * FROM products WHERE product_id = {product_id}")
     if product:
         return jsonify(product), 200
     return jsonify({"error": "Product not found"}), 404
 
-# Product Search
+# 5. PRODUCT SEARCH
 @app.route('/products/search', methods=["GET"])
 def search_products():
+    """SEARCH FOR PRODUCTS BASED ON QUERY PARAMETERS."""
     # Get query parameters
     product_id = request.args.get('id')
     name = request.args.get('name')
@@ -124,10 +145,10 @@ def search_products():
             "message": "No products found matching the criteria."
         }), 404
 
-
-# Add to Cart (with cart_items table)
+# 6. ADD TO CART
 @app.route('/cart/<customer_id>', methods=["POST"])
 def add_to_cart(customer_id):
+    """ADD AN ITEM TO THE CART."""
     # Get data from the request
     data = request.get_json()
     product_id = data.get('product_id')
@@ -163,21 +184,28 @@ def add_to_cart(customer_id):
         INSERT INTO cart_items (cart_id, product_id, quantity) 
         VALUES ({cart_id}, {product_id}, {quantity})
         """
-        execute_query(insert_query)
+        execute_insert(insert_query)
         message = "Item added to cart successfully."
     
     # Update the total amount in the cart
     product_price_query = f"SELECT price FROM products WHERE product_id = {product_id}"
-    product_price = execute_query(product_price_query)[0][0]
+    product_price_result = execute_query(product_price_query)
+    
+    if not product_price_result:
+        return jsonify({"error": "Product not found"}), 404  # Handle case where product does not exist
+    
+    product_price = product_price_result[0][0]
     new_total_amount = cart[0][1] + (product_price * quantity)
     update_total_query = f"UPDATE cart SET total_amount = {new_total_amount} WHERE cart_id = {cart_id}"
     execute_insert(update_total_query)
     
     return jsonify({"message": message}), 200
 
-# View Cart
+
+# 7. VIEW CART
 @app.route('/cart/<customer_id>', methods=["GET"])
 def view_cart(customer_id):
+    """VIEW THE CART DETAILS FOR A SPECIFIC CUSTOMER."""
     # Query to get the cart details for a specific customer
     cart_query = f"""
     SELECT cart.cart_id, cart.total_amount 
@@ -222,8 +250,7 @@ def view_cart(customer_id):
 
     return jsonify(response), 200
 
-from datetime import datetime
-
+# 8. PLACE ORDER
 # Place Order with Address Details
 @app.route('/place_order/<customer_id>', methods=["POST"])
 def place_order(customer_id):
@@ -273,3 +300,51 @@ def place_order(customer_id):
         }
     }), 201
 
+# 9. GET ALL CUSTOMERS
+@app.route('/customers', methods=["GET"])
+def get_all_customers():
+    """GET ALL CUSTOMER DETAILS."""
+    query = "SELECT customer_id, first_name, last_name, email FROM customer"
+    customers = execute_query(query)
+    
+    if not customers:
+        return jsonify({"message": "No customers found."}), 404
+    
+    customer_list = [
+        {
+            "customer_id": customer[0],
+            "first_name": customer[1],
+            "last_name": customer[2],
+            "email": customer[3]
+        }
+        for customer in customers
+    ]
+    
+    return jsonify(customer_list), 200
+
+# 10. GET ALL PRODUCTS
+@app.route('/products', methods=["GET"])
+def get_all_products():
+    """GET ALL PRODUCT DETAILS."""
+    query = "SELECT product_id, product_name, description, price FROM products"
+    products = execute_query(query)
+    
+    if not products:
+        return jsonify({"message": "No products found."}), 404
+    
+    product_list = [
+        {
+            "product_id": product[0],
+            "product_name": product[1],
+            "description": product[2],
+            "price": float(product[3])  # Ensure price is a float for JSON compatibility
+        }
+        for product in products
+    ]
+    
+    return jsonify(product_list), 200
+
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
