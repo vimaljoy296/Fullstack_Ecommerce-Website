@@ -5,21 +5,18 @@ import random
 conn = sqlite3.connect('vjbazaar.db')
 cursor = conn.cursor()
 
-# Sample data for categories
-category_names = ["Gym Sport", "Outdoor Sport", "Water Sport", "Team Sport", "Solo Sport"]
+# Sample data for "Indoor" and "Outdoor" categories
+category_names = ["Indoor", "Outdoor"]
 descriptions = [
-    "Activities suitable for gym or home environments.",
-    "Outdoor activities including hiking, running, and cycling.",
-    "Water-based sports such as swimming, diving, and surfing.",
-    "Sports played in teams such as soccer, basketball, and volleyball.",
-    "Individual sports like tennis, golf, and wrestling."
+    "Activities suitable for indoor environments like gyms or homes.",
+    "Outdoor activities including hiking, running, and cycling."
 ]
 
-# Insert 1000 rows of dummy data into categories table
+# Insert 1000 rows of dummy data into categories table with only "Indoor" and "Outdoor" categories
 for _ in range(1000):
     category_name = random.choice(category_names)
-    description = random.choice(descriptions)
-    type_id = random.randint(1, 5)  # Random type_id between 1 and 5
+    description = descriptions[0] if category_name == "Indoor" else descriptions[1]
+    type_id = 1 if category_name == "Indoor" else 2  # Set type_id as 1 for Indoor and 2 for Outdoor
     
     # Insert data into categories table
     cursor.execute('''
@@ -31,4 +28,4 @@ for _ in range(1000):
 conn.commit()
 conn.close()
 
-print("1000 rows of dummy data have been added to 'categories' table.")
+print("1000 rows of dummy data have been added to 'categories' table with only 'Indoor' and 'Outdoor' categories.")
